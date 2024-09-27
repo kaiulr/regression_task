@@ -26,7 +26,9 @@ def predict(X, coefficients):
     return X_b.dot(coefficients)
 
 if __name__ == "__main__":
-    # Setting up argument parser
+    
+    # This function parses the command line arguments, in the exact format specified.
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_path', type=str, required=True, help='Path to the saved model')
     parser.add_argument('--data_path', type=str, required=True, help='Path to the data (CSV file)')
@@ -35,12 +37,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Load model
+    # Load saved model from path
     model_data = load_model(args.model_path)
     coefficients = model_data['coefficients']
-    feature_names = model_data['features'][1:]  # Skip intercept
+    feature_names = model_data['features'][1:] 
 
-    # Load data
+    # Load data from the specified path
     data = pd.read_csv(args.data_path)
     
     # Ensure that the data has the correct features
