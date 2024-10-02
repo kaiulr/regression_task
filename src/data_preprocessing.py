@@ -28,3 +28,5 @@ df = pd.get_dummies(df, columns=category_10_columns, drop_first=True)
 df = df.drop(columns=['Year'])
 
 df.to_csv(os.path.join(output_dir, 'training_data.csv'), index=False)
+
+# Normalizing continuous variables

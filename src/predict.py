@@ -22,7 +22,7 @@ def save_metrics(train_error, r2, output_path):
 
 # Function to calculate predictions using the coefficients
 def predict(X, coefficients):
-    X_b = np.c_[np.ones((X.shape[0], 1)), X]  # Add the intercept term
+    X_b = np.c_[np.ones((X.shape[0], 1)), X]  # Adding the intercept column
     return X_b.dot(coefficients)
 
 if __name__ == "__main__":
@@ -44,6 +44,8 @@ if __name__ == "__main__":
 
     # Load data from the specified path
     data = pd.read_csv(args.data_path)
+
+    # Process the data (using same commands as in the 'preprocessing file')
     
     # Ensure that the data has the correct features
     X = data[feature_names].values
