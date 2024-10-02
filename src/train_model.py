@@ -10,7 +10,7 @@ import pickle
 
 input_dir = os.path.join(os.path.dirname((os.path.abspath("")))) 
 df = pd.read_csv(os.path.join(input_dir, 'data', 'training_data.csv'))
-fuel_dummy = [column for column in df.columns if 'FUEL' in column]
+fuel_dummy = [column for column in df.columns if 'FUEL_' in column]
 transmission_dummy = [column for column in df.columns if 'TRANSMISSION' in column]
 keep_columns = ['FUEL CONSUMPTION', 'COEMISSIONS','ENGINE SIZE', 'CYLINDERS'] + transmission_dummy + fuel_dummy
 
@@ -22,17 +22,19 @@ we=we.astype(np.float64)
 X = we[:, 1:] # Input matrix of all features
 y = we[:, 0] # Output vector of fuel transmission
 
-
 ## Find the OLS estimators for an input matrix X and singular numeric output Y
 # Using Equation 12 from: https://web.stanford.edu/~mrosenfe/soc_meth_proj3/matrix_OLS_NYU_notes.pdf
-def Train(X,Y):
-    X.astype(float)
-    first=np.dot(X.T,X)
-    first.astype(np.float16)
-    inverse=np.linalg.inv(first)
-    second=np.dot(X.T,Y)
+def Train(X,Y, lmbda= 0.01):
+    X = X.astype(float)
+    first = np.dot(X.T, X)
+    identity_matrix = np.eye(X.shape[1])
     
-    b=np.dot(inverse,second)
+    first_reg = first + lmbda * identity_matrix
+    
+    inverse = np.linalg.inv(first_reg)  # Invert the regularized matrix
+    second = np.dot(X.T, Y)
+    
+    b = np.dot(inverse, second)
     return b
 
 def Bias_Term(x): ## Offsets entire data by intercept (adding a column of 1s, similar to the first matrix in the PDF)
@@ -48,6 +50,11 @@ def Predict(X,b):
 x_train=Bias_Term(X)
 Beta=Train(x_train, y)
 train_predict=Predict(x_train, Beta)
+
+## Visualizing Predicted vs. Actual Values
+# plt.plot(y, train_predict, 'x')
+# plt.title("Plotting Actual vs Predicted Fuel Consumption Values")
+# plt.show()
 
 model_data = {
     'coefficients': Beta, 
@@ -65,7 +72,7 @@ def metrics(predict, actual): # Calculating r2, MSE, RMSE from 2 arrays: predict
     return mse, np.sqrt(mse), r2
 
 
-mse, rmse, r2 = metrics(y ,train_predict)
+mse, rmse, r2 = metrics(y, train_predict)
 
 print('Training  Error for Multivariable regression using {} variables is {}  '.format(len(df.columns)-1, mse))
 
@@ -75,12 +82,13 @@ regression_metrics = ['Regression Metrics:\n', f'Mean Squared Error (MSE): {mse}
 with open(os.path.join(input_dir, 'results', 'metrics.txt'), 'w') as f:
     f.writelines(regression_metrics)
 
+
 ## Running cross-validation to see how the model performs across different subsets of data
 
 # This function splits the data into n-folds, shuffles the folds, isolates one fold to act as the 'test' data
-# Assuming fold of 5 as default value.
+# Assuming fold of 10 as default value.
 
-def create_folds(X, n=4):
+def create_folds(X, n=10):
     # Gets us evenly spaced index for the entire length of the input matrix X
     # Equal to the number of data points.
     indices = np.arange(len(X))
@@ -102,24 +110,22 @@ def create_folds(X, n=4):
     return n_folds
 
 
-def cross_validation(X, y, n_folds=4):
+def cross_validation(X, y, n_folds=10):
     folds = create_folds(X)
     mse_list = []
     rmse_list = []
     r2_list = []
 
-    for i in range(n_folds-1):
-        print(i)
+    for i in range(n_folds):
+        print(f"Using fold {i} as Test Set.")
         # Iteratively using ith fold as the test set, the rest as the training set
         test_indices = folds[i]
         train_indices = np.concatenate([folds[j] for j in range(n_folds) if j != i]) # combining all remaining folds into one list
-        if i>3:
-            print(len(train_indices))
-
-
+    
         X_train, X_test = X[train_indices], X[test_indices]
         y_train, y_test = y[train_indices], y[test_indices]
         
+        print(f"Train Set Size: {len(train_indices)}, Test Set Size: {len(test_indices)}")
 
         X_train=Bias_Term(X_train)
         Beta=Train(X_train, y_train) # Getting coefficients
@@ -133,21 +139,29 @@ def cross_validation(X, y, n_folds=4):
         rmse_list.append(rmse)
         r2_list.append(r2)
     
-    # print('Mean MSE:{:%.2f}'.format(np.mean(mse_list)))
-    print("oh")
-    # print(f"Mean RMSE: {}", '{0:.2f}'.format(np.mean(rmse_list)))
-    # print(f"Mean R2: {}", '{0:.2f}'.format(np.mean(r2_list)))
+    print("Mean MSE:", '{0:.2f}'.format(np.mean(mse_list)))
+    print("Mean RMSE:", '{0:.2f}'.format(np.mean(rmse_list)))
+    print("Mean R2:", '{0:.2f}'.format(np.mean(r2_list)))
+    return mse_list, rmse_list, r2_list
 
+n_folds = 5
+mse, rmse, r2 = cross_validation(X, y, n_folds)
+print(mse)
+## Visualizing performance with each fold
+x_axis = [f"Fold {i}" for i in range(1,n_folds+1)]
 
-cross_validation(X, y)
-## Visualizing errors
-# plt.hist(errors_sqr, bins=100)
-# plt.show()
+def addlabels(x,y):
+    for i in range(len(x)):
+        plt.text(i,y[i],format(y[i], ".2f"))
 
-## Visualizing Predicted vs. Actual Values
-# plt.plot(xtrain, ytrain, 'o')
-# plt.plot(xtrain, train_predict, 'x')
-# plt.show()
+plt.plot(x_axis, mse, label="Mean Squared Errors", marker='o')
+addlabels(x_axis, mse)
+plt.plot(x_axis, r2, label="R-Squared", marker='o')
+addlabels(x_axis, r2)
+plt.legend()
+plt.title("Fold-Wise Performance")
+plt.show()
+
 
 
 ## Saving model: coefficients corresponding to each feature used in model.
