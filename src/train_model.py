@@ -1,30 +1,42 @@
 import numpy as np
 import pandas as pd
 import os
+from pathlib import Path
 import matplotlib.pyplot as plt
+from data_preprocessing import preprocessing
 import pickle
 
-## Beginning with OLS - Multivariable Regression
+## Beginning with OLS - Multivariate Regression
 # Based on results from data exploration, using all numerical IVs (Coemissions, Engine Size, Cylinders)
 # Also using encoded Fuel and Transmission values as they are not highly branched.
 
-input_dir = os.path.join(os.path.dirname((os.path.abspath("")))) 
-df = pd.read_csv(os.path.join(input_dir, 'data', 'training_data.csv'))
+input_file = "C:/Users/Fiona/Desktop/Fiona_Arora_A1/regression_task/fuel_train.csv"
+model_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'models')
+output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'data')
+data_dir = preprocessing(input_file, output_dir)
+df = pd.read_csv(data_dir)
+
+# One data pre-processed, selecting which columns to keep for regression task
 fuel_dummy = [column for column in df.columns if 'FUEL_' in column]
 transmission_dummy = [column for column in df.columns if 'TRANSMISSION' in column]
-keep_columns = ['FUEL CONSUMPTION', 'COEMISSIONS','ENGINE SIZE', 'CYLINDERS'] + transmission_dummy + fuel_dummy
+# keep_columns = ['COEMISSIONS','ENGINE SIZE', 'CYLINDERS'] + transmission_dummy + fuel_dummy
+keep_columns = ['scaled_coemissions','ENGINE SIZE', 'CYLINDERS'] + transmission_dummy + fuel_dummy
 
-df = df[keep_columns]
-
+# df = df[keep_columns]
 # Converting DF to Numpy array to perform matrix operations
-we=df.to_numpy()
-we=we.astype(np.float64)
-X = we[:, 1:] # Input matrix of all features
-y = we[:, 0] # Output vector of fuel transmission
+# we=df.to_numpy()
+# print(we)
+# we=we.astype(np.float64)
+# X = we[:, 1:] # Input matrix of all features
+# print(X)
+# y = we[:, 0] # Output vector of fuel transmission
+
+X = df[keep_columns].values
+y = df['FUEL CONSUMPTION'].values
 
 ## Find the OLS estimators for an input matrix X and singular numeric output Y
 # Using Equation 12 from: https://web.stanford.edu/~mrosenfe/soc_meth_proj3/matrix_OLS_NYU_notes.pdf
-def Train(X,Y, lmbda= 0.01):
+def Train(X,Y, lmbda= 0.05):
     X = X.astype(float)
     first = np.dot(X.T, X)
     identity_matrix = np.eye(X.shape[1])
@@ -45,42 +57,38 @@ def Bias_Term(x): ## Offsets entire data by intercept (adding a column of 1s, si
     return x
 
 def Predict(X,b):
-    return (np.dot(X,b)) # Equation (43) from PDF
+    return (np.dot(X,b)) # Equation (43) from PDF (multiplying features with coefficients)
 
-x_train=Bias_Term(X)
-Beta=Train(x_train, y)
-train_predict=Predict(x_train, Beta)
+# Taking train-test split (80:20)
+split_index = int(np.ceil(len(X)*0.8))
+
+trainx = X[0:split_index]
+trainy = y[0:split_index]
+testx = X[split_index + 1:]
+testy = y[split_index + 1:]
+
+x_train=Bias_Term(trainx)
+Beta=Train(x_train, trainy)
+
+x_test = Bias_Term(testx)
+test_predict=Predict(x_test, Beta)
 
 ## Visualizing Predicted vs. Actual Values
-# plt.plot(y, train_predict, 'x')
-# plt.title("Plotting Actual vs Predicted Fuel Consumption Values")
-# plt.show()
-
-model_data = {
-    'coefficients': Beta, 
-    'features': ['Intercept'] + list(df.columns[1:])
-} # Including intercept term here for completeness, though when running on actual model, re-initializing the intercept term as a column of 1s
+plt.plot(testy, test_predict, 'x')
+plt.title("Plotting Actual vs Predicted Fuel Consumption Values on Test Set")
+plt.show()
 
 
-## Creating a function for MSE, which we need for the final model metrics, and to act as a loss function to evaluation model performance
-
-def metrics(predict, actual): # Calculating r2, MSE, RMSE from 2 arrays: predicted values and actual.
-    tss = np.sum((predict - np.mean(actual)) ** 2)
-    rss = np.sum((predict - actual) ** 2)
-    r2 = 1 - (rss / tss)
-    mse = np.mean((predict-actual) ** 2)
+def metrics(actual, predicted): # Calculating r2, MSE, RMSE from 2 arrays: predicted values and actual.
+    tss = np.sum((actual - np.mean(actual)) ** 2)
+    ssr = np.sum((predicted - actual)**2)
+    r2 = 1 - (ssr / tss)
+    mse = np.mean((predicted-actual) ** 2)
     return mse, np.sqrt(mse), r2
 
+mse, rmse, r2 = metrics(testy, test_predict)
 
-mse, rmse, r2 = metrics(y, train_predict)
-
-print('Training  Error for Multivariable regression using {} variables is {}  '.format(len(df.columns)-1, mse))
-
-regression_metrics = ['Regression Metrics:\n', f'Mean Squared Error (MSE): {mse}\n', 
-                      f'Root Mean Squared Error (RMSE): {rmse}\n', f'R-squared (R²) Score: {r2}\n']
-
-with open(os.path.join(input_dir, 'results', 'metrics.txt'), 'w') as f:
-    f.writelines(regression_metrics)
+print('Test Error for Multivariate Ridge Regression using {} variables is {}  '.format(len(df.columns)-1, round(mse,3)))
 
 
 ## Running cross-validation to see how the model performs across different subsets of data
@@ -88,7 +96,7 @@ with open(os.path.join(input_dir, 'results', 'metrics.txt'), 'w') as f:
 # This function splits the data into n-folds, shuffles the folds, isolates one fold to act as the 'test' data
 # Assuming fold of 10 as default value.
 
-def create_folds(X, n=10):
+def create_folds(X, n):
     # Gets us evenly spaced index for the entire length of the input matrix X
     # Equal to the number of data points.
     indices = np.arange(len(X))
@@ -110,51 +118,54 @@ def create_folds(X, n=10):
     return n_folds
 
 
-def cross_validation(X, y, n_folds=10):
-    folds = create_folds(X)
+def cross_validation(X, y, n_folds):
+    folds = create_folds(X, n_folds)
     mse_list = []
     rmse_list = []
     r2_list = []
+    beta_list = []
 
     for i in range(n_folds):
         print(f"Using fold {i} as Test Set.")
         # Iteratively using ith fold as the test set, the rest as the training set
         test_indices = folds[i]
         train_indices = np.concatenate([folds[j] for j in range(n_folds) if j != i]) # combining all remaining folds into one list
-    
+
+        # print(list(set(train_indices) & set(test_indices))) # Checking for any overlap in train and test set
+
         X_train, X_test = X[train_indices], X[test_indices]
         y_train, y_test = y[train_indices], y[test_indices]
         
         print(f"Train Set Size: {len(train_indices)}, Test Set Size: {len(test_indices)}")
 
         X_train=Bias_Term(X_train)
-        Beta=Train(X_train, y_train) # Getting coefficients
+        Beta=Train(X_train, y_train) # Getting coefficients from training data
 
         X_test=Bias_Term(X_test)
         y_predict=Predict(X_test, Beta) # Using coefficients to predict on test dataset
         
         # Get metrics for test
-        mse, rmse, r2 = metrics(y_test,y_predict)
+        mse, rmse, r2 = metrics(y_test, y_predict)
         mse_list.append(mse)
         rmse_list.append(rmse)
         r2_list.append(r2)
+        beta_list.append(Beta)
     
-    print("Mean MSE:", '{0:.2f}'.format(np.mean(mse_list)))
-    print("Mean RMSE:", '{0:.2f}'.format(np.mean(rmse_list)))
-    print("Mean R2:", '{0:.2f}'.format(np.mean(r2_list)))
-    return mse_list, rmse_list, r2_list
+    print("Mean MSE:", round(np.mean(mse_list), 2))
+    print("Mean RMSE:", round(np.mean(rmse_list), 2))
+    print("Mean R2:", round(np.mean(r2_list), 2))
+    return mse_list, rmse_list, r2_list, beta_list
 
-n_folds = 5
-mse, rmse, r2 = cross_validation(X, y, n_folds)
+n_folds = 4
+mse, rmse, r2, betas = cross_validation(X, y, n_folds)
 print(mse)
 ## Visualizing performance with each fold
 x_axis = [f"Fold {i}" for i in range(1,n_folds+1)]
-
 def addlabels(x,y):
     for i in range(len(x)):
         plt.text(i,y[i],format(y[i], ".2f"))
 
-plt.plot(x_axis, mse, label="Mean Squared Errors", marker='o')
+plt.plot(x_axis, mse, label="Mean Squared Error", marker='o')
 addlabels(x_axis, mse)
 plt.plot(x_axis, r2, label="R-Squared", marker='o')
 addlabels(x_axis, r2)
@@ -162,10 +173,32 @@ plt.legend()
 plt.title("Fold-Wise Performance")
 plt.show()
 
+stacked_arrays = np.vstack(betas)
+averaged_betas = np.mean(stacked_arrays, axis=0)
+averaged_coeff = averaged_betas.tolist()
 
+X_final = Bias_Term(X)
+averaged_predict = Predict(X_final, averaged_coeff)
+
+print(metrics(y, averaged_predict))
+
+model1_data = {
+    'coefficients': Beta, 
+    'features': list(keep_columns)
+}
 
 ## Saving model: coefficients corresponding to each feature used in model.
-with open(os.path.join(input_dir, 'models', 'regression_model1.pkl'), 'wb') as f:
-    pickle.dump(model_data, f)
+with open(os.path.join(model_dir, 'regression_model1.pkl'), 'wb') as f:
+    pickle.dump(model1_data, f)
 
 print("Model saved to 'regression_model1.pkl'")
+
+model2_data = {
+    'coefficients': averaged_coeff, 
+    'features': list(keep_columns)
+}
+
+with open(os.path.join(model_dir, 'regression_model2.pkl'), 'wb') as f:
+    pickle.dump(model2_data, f)
+
+print("Model saved to 'regression_model2.pkl'")

@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import argparse
 import pickle
+import os
+from data_preprocessing import preprocessing
 
 # Since predict.py will parse user-inputted arguments, defining functions which take each command line argument as input
 
@@ -20,10 +22,16 @@ def save_metrics(train_error, r2, output_path):
     with open(output_path, 'w') as f:
         f.writelines(regression_metrics)
 
-# Function to calculate predictions using the coefficients
-def predict(X, coefficients):
-    X_b = np.c_[np.ones((X.shape[0], 1)), X]  # Adding the intercept column
-    return X_b.dot(coefficients)
+# Functions to calculate predictions using the coefficients
+def Bias_Term(x): ## Offsets entire data by intercept (Same as in train_model.py)
+    if (len(x.shape)==1):
+        x=x[:,np.newaxis]
+    b=np.ones((x.shape[0],1)) # Creating a new column of ones
+    x=np.concatenate((b,x), axis=1) # Concatenating column to feature-matrix
+    return x
+
+def Predict(X,b):
+    return (np.dot(X,b)) # Equation (43) from PDF (multiplying features with coefficients)
 
 if __name__ == "__main__":
     
@@ -40,37 +48,43 @@ if __name__ == "__main__":
     # Load saved model from path
     model_data = load_model(args.model_path)
     coefficients = model_data['coefficients']
-    feature_names = model_data['features'][1:] 
+    feature_names = model_data['features']
 
     # Load data from the specified path
-    data = pd.read_csv(args.data_path)
-
-    # Process the data (using same commands as in the 'preprocessing file')
+    # output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'data')
+    output_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__))) # Temporarily saving processed data in same folder
     
-    # Ensure that the data has the correct features
+    # Process the data as we have for the train set
+    processed_data_dir = preprocessing(args.data_path, output_dir)
+    data = pd.read_csv(processed_data_dir)
+    
+    # Splitting the features and output variable (fuel consumption)
     X = data[feature_names].values
-    ytrain = data['FUEL CONSUMPTION'].values
+    print(X)
+    X_bias = Bias_Term(X)
+    y = data['FUEL CONSUMPTION'].values
 
     # Make predictions
-    ypred = predict(X, coefficients)
+    predicted_values = Predict(X_bias, coefficients)
 
-    # Calculate metrics manually (MSE and R^2)
-    mse = np.mean((ypred - ytrain) ** 2)
-    
-    # Total sum of squares (TSS) and residual sum of squares (RSS)
-    tss = np.sum((ytrain - np.mean(ytrain)) ** 2)
-    rss = np.sum((ypred - ytrain) ** 2)
-    r2 = 1 - (rss / tss)
+    def metrics(actual, predicted): # Calculating r2, MSE, RMSE from 2 arrays: predicted values and actual.
+        tss = np.sum((actual - np.mean(actual))**2)
+        ssr = np.sum((predicted - actual)**2)
+        r2 = 1 - (ssr / tss)
+        mse = np.mean((predicted - actual)**2)
+        return mse, np.sqrt(mse), r2
+
+    mse, rmse, r2 = metrics(y, predicted_values)
 
     # Save predictions to CSV
     predictions_df = pd.DataFrame({
-        'Actual': ytrain,
-        'Predicted': ypred
+        'Actual': y,
+        'Predicted': predicted_values
     })
 
     regression_results(predictions_df, args.predictions_output_path)
 
-    # Save metrics to a text file
+    # Save metrics to the metrics.txt file)
     save_metrics(mse, r2, args.metrics_output_path)
 
     print(f"Predictions saved to {args.predictions_output_path}")
