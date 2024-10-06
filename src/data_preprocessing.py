@@ -6,7 +6,7 @@ from pathlib import Path
 
 output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), 'data') 
 
-df = pd.read_csv("C:/Users/Fiona/Desktop/Fiona_Arora_A1/fuel_train.csv")
+df = pd.read_csv("C:/Users/Fiona/Desktop/Fiona_Arora_A1/regression_task/fuel_train.csv")
 
 ## Checking missing values and dtypes
 null_cells = df.isnull().sum()
@@ -27,6 +27,9 @@ df = pd.get_dummies(df, columns=category_10_columns, drop_first=True)
 ## Dropping year as it adds no information
 df = df.drop(columns=['Year'])
 
-df.to_csv(os.path.join(output_dir, 'training_data.csv'), index=False)
 
-# Normalizing continuous variables
+# Min-max scaling continuous variables (in order to help prediction accuracy and understanding of Betas)
+df['scaled_fuel_consumption'] = (df['FUEL CONSUMPTION'] - min(df['FUEL CONSUMPTION']))/(max(df['FUEL CONSUMPTION'])-min(df['FUEL CONSUMPTION']))
+df['scaled_engine_size'] = (df['ENGINE SIZE'] - min(df['ENGINE SIZE']))/(max(df['ENGINE SIZE'])-min(df['FUEL CONSUMPTION']))
+
+df.to_csv(os.path.join(output_dir, 'training_data.csv'), index=False)
