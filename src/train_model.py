@@ -19,24 +19,18 @@ df = pd.read_csv(data_dir)
 # One data pre-processed, selecting which columns to keep for regression task
 fuel_dummy = [column for column in df.columns if 'FUEL_' in column]
 transmission_dummy = [column for column in df.columns if 'TRANSMISSION' in column]
-# keep_columns = ['COEMISSIONS','ENGINE SIZE', 'CYLINDERS'] + transmission_dummy + fuel_dummy
-keep_columns = ['scaled_coemissions','ENGINE SIZE', 'CYLINDERS'] + transmission_dummy + fuel_dummy
-
-# df = df[keep_columns]
-# Converting DF to Numpy array to perform matrix operations
-# we=df.to_numpy()
-# print(we)
-# we=we.astype(np.float64)
-# X = we[:, 1:] # Input matrix of all features
-# print(X)
-# y = we[:, 0] # Output vector of fuel transmission
+# keep_columns = ['COEMISSIONS','ENGINE SIZE', 'CYLINDERS'] # Initial run
+# keep_columns = ['scaled_coemissions','scaled_engine_size', 'CYLINDERS'] # Scaled run
+keep_columns = ['scaled_coemissions','scaled_engine_size', 'CYLINDERS'] + transmission_dummy + fuel_dummy # Scaled + Encoded
 
 X = df[keep_columns].values
-y = df['FUEL CONSUMPTION'].values
+y = df['scaled_fuel_consumption'].values
 
 ## Find the OLS estimators for an input matrix X and singular numeric output Y
-# Using Equation 12 from: https://web.stanford.edu/~mrosenfe/soc_meth_proj3/matrix_OLS_NYU_notes.pdf
-def Train(X,Y, lmbda= 0.05):
+# Initially using Equation 12 from: https://web.stanford.edu/~mrosenfe/soc_meth_proj3/matrix_OLS_NYU_notes.pdf
+# Then using Ridge regression equation from https://compphysics.github.io/MLErasmus/doc/pub/day1/pdf/day1.pdf
+
+def Train(X, Y, lmbda = 0.01):
     X = X.astype(float)
     first = np.dot(X.T, X)
     identity_matrix = np.eye(X.shape[1])
@@ -78,7 +72,6 @@ plt.plot(testy, test_predict, 'x')
 plt.title("Plotting Actual vs Predicted Fuel Consumption Values on Test Set")
 plt.show()
 
-
 def metrics(actual, predicted): # Calculating r2, MSE, RMSE from 2 arrays: predicted values and actual.
     tss = np.sum((actual - np.mean(actual)) ** 2)
     ssr = np.sum((predicted - actual)**2)
@@ -88,7 +81,10 @@ def metrics(actual, predicted): # Calculating r2, MSE, RMSE from 2 arrays: predi
 
 mse, rmse, r2 = metrics(testy, test_predict)
 
-print('Test Error for Multivariate Ridge Regression using {} variables is {}  '.format(len(df.columns)-1, round(mse,3)))
+
+print('Test Error for Multivariate Ridge Regression using {} variables is {} '.format(len(keep_columns)-1, round(mse, 4)))
+print('R2 for Multivariate Ridge Regression using {} variables is {} '.format(len(keep_columns)-1, round(r2, 4)))
+print('RMSE for Multivariate Ridge Regression using {} variables is {} '.format(len(keep_columns)-1, round(rmse, 4)))
 
 
 ## Running cross-validation to see how the model performs across different subsets of data
@@ -151,15 +147,15 @@ def cross_validation(X, y, n_folds, lmbda=0.01):
         r2_list.append(r2)
         beta_list.append(Beta)
     
-    # print("Mean MSE:", round(np.mean(mse_list), 2))
-    # print("Mean RMSE:", round(np.mean(rmse_list), 2))
-    # print("Mean R2:", round(np.mean(r2_list), 2))
+    print("Mean MSE:", round(np.mean(mse_list), 2))
+    print("Mean RMSE:", round(np.mean(rmse_list), 2))
+    print("Mean R2:", round(np.mean(r2_list), 2))
     return mse_list, rmse_list, r2_list, beta_list
 
-# n_folds = 4
-# # mse, rmse, r2, betas = cross_validation(X, y, n_folds)
-# print(mse)
-# ## Visualizing performance with each fold
+n_folds = 5
+mse, rmse, r2, betas = cross_validation(X, y, n_folds)
+
+## Visualizing performance with each fold
 # x_axis = [f"Fold {i}" for i in range(1,n_folds+1)]
 # def addlabels(x,y):
 #     for i in range(len(x)):
@@ -173,41 +169,46 @@ def cross_validation(X, y, n_folds, lmbda=0.01):
 # plt.title("Fold-Wise Performance")
 # plt.show()
 
-## Averaging the betas from cross validation
-# stacked_arrays = np.vstack(betas)
-# averaged_betas = np.mean(stacked_arrays, axis=0)
-# averaged_coeff = averaged_betas.tolist()
+# Averaging the betas from cross validation
+stacked_arrays = np.vstack(betas)
+averaged_betas = np.mean(stacked_arrays, axis=0)
+averaged_coeff = averaged_betas.tolist()
 
-# X_final = Bias_Term(X)
-# averaged_predict = Predict(X_final, averaged_coeff)
+bagging_predict = Predict(x_test, averaged_coeff)
+test_predict=Predict(x_test, Beta)
+print(metrics(testy, test_predict))
 
-# print(metrics(y, averaged_predict))
+## Tuning Lambda
+# for i in [0.005, 0.01, 0.02, 0.03, 0.04, 0.05, 0.006, 0.07, 0.08, 0.09, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]:
+#     n_folds = 5
+#     mse,_,r2,_ = cross_validation(X, y, n_folds, lmbda=i)
+#     print(f"Average Test MSE across {n_folds} folds for Lambda={i}: {round(np.mean(mse),3)}")
+#     print(f"Average Test RMSE across {n_folds} folds for Lambda={i}: {round(np.mean(rmse),3)}")
+#     print(f"Average Test R2 across {n_folds} folds for Lambda={i}: {round(np.mean(r2),3)}")
 
-for i in [0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5]:
-    n_folds = 5
-    mse,_,r2,_ = cross_validation(X, y, n_folds, lmbda=i)
-    print(f"Average Test MSE across {n_folds} folds for Lambda={i}: {round(np.mean(mse),3)}")
-    print(f"Average Test R2 across {n_folds} folds for Lambda={i}: {round(np.mean(r2),3)}")
 
+model2_data = {
+    'coefficients': averaged_coeff, 
+    'features': list(keep_columns)
+}
 
-model1_data = {
-    'coefficients': Beta, 
+with open(os.path.join(model_dir, 'regression_model1.pkl'), 'wb') as f:
+    pickle.dump(model2_data, f)
+
+print("Model saved to 'regression_model1.pkl'")
+
+final_train = Bias_Term(X)
+final_coeff = Train(X, y)
+
+final_model = {
+    'coefficients': final_coeff, 
     'features': list(keep_columns)
 }
 
 ## Saving model: coefficients corresponding to each feature used in model.
-with open(os.path.join(model_dir, 'regression_model1.pkl'), 'wb') as f:
-    pickle.dump(model1_data, f)
+with open(os.path.join(model_dir, 'regression_model_final.pkl'), 'wb') as f:
+    pickle.dump(final_model, f)
 
-print("Model saved to 'regression_model1.pkl'")
+print("Model saved to 'regression_model_final.pkl'")
 
-# model2_data = {
-#     'coefficients': averaged_coeff, 
-#     'features': list(keep_columns)
-# }
-
-# with open(os.path.join(model_dir, 'regression_model2.pkl'), 'wb') as f:
-#     pickle.dump(model2_data, f)
-
-# print("Model saved to 'regression_model2.pkl'")
 

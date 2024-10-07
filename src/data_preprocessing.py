@@ -36,8 +36,6 @@ def preprocessing(input_dir, output_dir):
     df['scaled_coemissions'] = (df['COEMISSIONS'] - min(df['COEMISSIONS']))/(max(df['COEMISSIONS'])-min(df['COEMISSIONS']))
 
     # Converting categorical to ordinal (Vehicle Class)
-    
-
     df.to_csv(os.path.join(output_dir, 'training_data.csv'), index=False)
     print(f"Processed data saved to '{os.path.join(output_dir, 'training_data.csv')}'")
 

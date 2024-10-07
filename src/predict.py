@@ -60,9 +60,8 @@ if __name__ == "__main__":
     
     # Splitting the features and output variable (fuel consumption)
     X = data[feature_names].values
-    print(X)
     X_bias = Bias_Term(X)
-    y = data['FUEL CONSUMPTION'].values
+    y = data['scaled_fuel_consumption'].values
 
     # Make predictions
     predicted_values = Predict(X_bias, coefficients)
