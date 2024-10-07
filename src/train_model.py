@@ -139,7 +139,7 @@ def cross_validation(X, y, n_folds, lmbda=0.01):
 
         X_test=Bias_Term(X_test)
         y_predict=Predict(X_test, Beta) # Using coefficients to predict on test dataset
-        
+
         # Get metrics for test
         mse, rmse, r2 = metrics(y_test, y_predict)
         mse_list.append(mse)
