@@ -118,7 +118,7 @@ def create_folds(X, n):
     return n_folds
 
 
-def cross_validation(X, y, n_folds):
+def cross_validation(X, y, n_folds, lmbda=0.01):
     folds = create_folds(X, n_folds)
     mse_list = []
     rmse_list = []
@@ -126,7 +126,7 @@ def cross_validation(X, y, n_folds):
     beta_list = []
 
     for i in range(n_folds):
-        print(f"Using fold {i} as Test Set.")
+        # print(f"Using fold {i} as Test Set.")
         # Iteratively using ith fold as the test set, the rest as the training set
         test_indices = folds[i]
         train_indices = np.concatenate([folds[j] for j in range(n_folds) if j != i]) # combining all remaining folds into one list
@@ -136,10 +136,10 @@ def cross_validation(X, y, n_folds):
         X_train, X_test = X[train_indices], X[test_indices]
         y_train, y_test = y[train_indices], y[test_indices]
         
-        print(f"Train Set Size: {len(train_indices)}, Test Set Size: {len(test_indices)}")
+        # print(f"Train Set Size: {len(train_indices)}, Test Set Size: {len(test_indices)}")
 
         X_train=Bias_Term(X_train)
-        Beta=Train(X_train, y_train) # Getting coefficients from training data
+        Beta=Train(X_train, y_train, lmbda=lmbda) # Getting coefficients from training data
 
         X_test=Bias_Term(X_test)
         y_predict=Predict(X_test, Beta) # Using coefficients to predict on test dataset
@@ -151,36 +151,44 @@ def cross_validation(X, y, n_folds):
         r2_list.append(r2)
         beta_list.append(Beta)
     
-    print("Mean MSE:", round(np.mean(mse_list), 2))
-    print("Mean RMSE:", round(np.mean(rmse_list), 2))
-    print("Mean R2:", round(np.mean(r2_list), 2))
+    # print("Mean MSE:", round(np.mean(mse_list), 2))
+    # print("Mean RMSE:", round(np.mean(rmse_list), 2))
+    # print("Mean R2:", round(np.mean(r2_list), 2))
     return mse_list, rmse_list, r2_list, beta_list
 
-n_folds = 4
-mse, rmse, r2, betas = cross_validation(X, y, n_folds)
-print(mse)
-## Visualizing performance with each fold
-x_axis = [f"Fold {i}" for i in range(1,n_folds+1)]
-def addlabels(x,y):
-    for i in range(len(x)):
-        plt.text(i,y[i],format(y[i], ".2f"))
+# n_folds = 4
+# # mse, rmse, r2, betas = cross_validation(X, y, n_folds)
+# print(mse)
+# ## Visualizing performance with each fold
+# x_axis = [f"Fold {i}" for i in range(1,n_folds+1)]
+# def addlabels(x,y):
+#     for i in range(len(x)):
+#         plt.text(i,y[i],format(y[i], ".2f"))
 
-plt.plot(x_axis, mse, label="Mean Squared Error", marker='o')
-addlabels(x_axis, mse)
-plt.plot(x_axis, r2, label="R-Squared", marker='o')
-addlabels(x_axis, r2)
-plt.legend()
-plt.title("Fold-Wise Performance")
-plt.show()
+# plt.plot(x_axis, mse, label="Mean Squared Error", marker='o')
+# addlabels(x_axis, mse)
+# plt.plot(x_axis, r2, label="R-Squared", marker='o')
+# addlabels(x_axis, r2)
+# plt.legend()
+# plt.title("Fold-Wise Performance")
+# plt.show()
 
-stacked_arrays = np.vstack(betas)
-averaged_betas = np.mean(stacked_arrays, axis=0)
-averaged_coeff = averaged_betas.tolist()
+## Averaging the betas from cross validation
+# stacked_arrays = np.vstack(betas)
+# averaged_betas = np.mean(stacked_arrays, axis=0)
+# averaged_coeff = averaged_betas.tolist()
 
-X_final = Bias_Term(X)
-averaged_predict = Predict(X_final, averaged_coeff)
+# X_final = Bias_Term(X)
+# averaged_predict = Predict(X_final, averaged_coeff)
 
-print(metrics(y, averaged_predict))
+# print(metrics(y, averaged_predict))
+
+for i in [0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5]:
+    n_folds = 5
+    mse,_,r2,_ = cross_validation(X, y, n_folds, lmbda=i)
+    print(f"Average Test MSE across {n_folds} folds for Lambda={i}: {round(np.mean(mse),3)}")
+    print(f"Average Test R2 across {n_folds} folds for Lambda={i}: {round(np.mean(r2),3)}")
+
 
 model1_data = {
     'coefficients': Beta, 
@@ -193,12 +201,13 @@ with open(os.path.join(model_dir, 'regression_model1.pkl'), 'wb') as f:
 
 print("Model saved to 'regression_model1.pkl'")
 
-model2_data = {
-    'coefficients': averaged_coeff, 
-    'features': list(keep_columns)
-}
+# model2_data = {
+#     'coefficients': averaged_coeff, 
+#     'features': list(keep_columns)
+# }
 
-with open(os.path.join(model_dir, 'regression_model2.pkl'), 'wb') as f:
-    pickle.dump(model2_data, f)
+# with open(os.path.join(model_dir, 'regression_model2.pkl'), 'wb') as f:
+#     pickle.dump(model2_data, f)
 
-print("Model saved to 'regression_model2.pkl'")
+# print("Model saved to 'regression_model2.pkl'")
+
